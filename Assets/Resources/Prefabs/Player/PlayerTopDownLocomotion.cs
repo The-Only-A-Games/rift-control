@@ -1,74 +1,128 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections;
 
 public class PlayerTopDownLocomotion : MonoBehaviour
 {
-    [Header("Attributes")]
+    [Header("Move")]
     public float moveSpeed = 10;
-    // public float rotationSpeed = 3f;
 
-    [Header("GameObjects and Components")]
+    [Header("Dash")]
+    public float dashSpeed = 25f;
+    public float dashDuration = 0.15f;
+    public int maxDashCharges = 2;
+    public float dashRefillDelay = 0.4f;
+
+    private int currentDashCharges;
+    private float dashRefillTimer;
+
+    private bool isDashing;
+    private bool canMove = true;
+
     private CharacterController controller;
     private Camera camera;
 
+    private Vector3 velocity;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         camera = Camera.main;
-
         controller = GetComponent<CharacterController>();
+        currentDashCharges = maxDashCharges;
     }
 
-    // Update is called once per frame
     void Update()
     {
-        // Prevet running the code if components are not found
-        if (
-            controller == null
-        ) return;
+        if (controller == null) return;
 
-        // ----- PLAYER ROTATION -----\\
+        RotateToMouse();
+
+        if (canMove)
+            Move();
+
+        HandleDash();
+        HandleDashRefill();
+    }
+
+    void HandleDash()
+    {
+        if (Keyboard.current.spaceKey.wasPressedThisFrame &&
+            currentDashCharges > 0 &&
+            !isDashing)
+        {
+            currentDashCharges--;
+            dashRefillTimer = 0f;
+            StartCoroutine(Dash());
+        }
+    }
+
+    void HandleDashRefill()
+    {
+        if (currentDashCharges >= maxDashCharges) return;
+
+        dashRefillTimer += Time.deltaTime;
+
+        if (dashRefillTimer >= dashRefillDelay)
+        {
+            currentDashCharges++;
+            dashRefillTimer = 0f;
+        }
+    }
+
+    IEnumerator Dash()
+    {
+        isDashing = true;
+        canMove = false;
+
+        float timer = 0f;
+
+        while (timer < dashDuration)
+        {
+            controller.Move(transform.forward * dashSpeed * Time.deltaTime);
+            timer += Time.deltaTime;
+            yield return null;
+        }
+
+        canMove = true;
+        isDashing = false;
+    }
+
+    void RotateToMouse()
+    {
         Vector3 mousePosition = MousePosition(Mouse.current.position.ReadValue());
-        mousePosition.y = 0; // To make sure we dont rotate on the y-axis
 
         if (mousePosition != Vector3.zero)
         {
+            mousePosition.y = transform.position.y;
             transform.LookAt(mousePosition);
         }
+    }
 
-        // ----- PLAYER MOVEMENT ----- \\
+    void Move()
+    {
         Vector3 direction = MoveDirection().normalized;
 
-        // Add graivity if player is not grounded
-        if (!controller.isGrounded) direction.y += -9.8f * Time.deltaTime;
+        if (controller.isGrounded && velocity.y < 0)
+            velocity.y = -2f;
 
-        controller.Move(direction * moveSpeed * Time.deltaTime);
+        velocity.y += Physics.gravity.y * Time.deltaTime;
+
+        Vector3 finalMove = direction * moveSpeed + velocity;
+
+        controller.Move(finalMove * Time.deltaTime);
     }
 
     Vector3 MousePosition(Vector3 target)
     {
-        int maxDistance = 1000;
-        // Allows us to fire raycast from the center of the screen
-        // Vector3 screenCenter = new Vector3(Screen.width / 2, Screen.height / 2, 0);
-
-        // Allows us to create a raycast from screen point
         Ray ray = camera.ScreenPointToRay(target);
-
-        // Captures cast information
         RaycastHit hit;
 
-        if (Physics.Raycast(ray, out hit, maxDistance))
-        {
-            Debug.Log(hit.point);
+        if (Physics.Raycast(ray, out hit, 1000))
             return hit.point;
-        }
 
         return Vector3.zero;
-
     }
 
-    // basic movement controls - will be removed later
     Vector3 MoveDirection()
     {
         float h = 0;
@@ -76,7 +130,6 @@ public class PlayerTopDownLocomotion : MonoBehaviour
 
         if (Keyboard.current.aKey.isPressed) h = -1;
         if (Keyboard.current.dKey.isPressed) h = 1;
-
         if (Keyboard.current.sKey.isPressed) v = -1;
         if (Keyboard.current.wKey.isPressed) v = 1;
 
