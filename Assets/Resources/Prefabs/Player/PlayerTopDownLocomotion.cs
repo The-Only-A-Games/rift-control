@@ -38,11 +38,12 @@ public class PlayerTopDownLocomotion : MonoBehaviour
         }
 
         // ----- PLAYER MOVEMENT ----- \\
-        Vector3 direction = MoveDirection();
+        Vector3 direction = MoveDirection().normalized;
+
+        // Add graivity if player is not grounded
+        if (!controller.isGrounded) direction.y += -9.8f * Time.deltaTime;
 
         controller.Move(direction * moveSpeed * Time.deltaTime);
-
-
     }
 
     Vector3 MousePosition(Vector3 target)
@@ -67,6 +68,7 @@ public class PlayerTopDownLocomotion : MonoBehaviour
 
     }
 
+    // basic movement controls - will be removed later
     Vector3 MoveDirection()
     {
         float h = 0;
